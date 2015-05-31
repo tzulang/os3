@@ -14,8 +14,6 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
-extern int mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
-
 void
 tvinit(void)
 {
@@ -38,12 +36,6 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
-
-//	  char *mem;
-//	  uint va;
-//	  uint newsz;
-
-
   if(tf->trapno == T_SYSCALL){
     if(proc->killed)
       exit();
@@ -53,6 +45,7 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
+  uint va;
 
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
@@ -85,24 +78,12 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-   
-   case  T_PGFLT:
+  case T_PGFLT:
 
-//	  newsz = proc->sz;
-//	  for(a = PGROUNDDOWN(rcr2()); a < newsz; a += PGSIZE){
-//		mem = kalloc();
-//		memset(mem, 0, PGSIZE);
-//		mappages(proc->pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
-//	  }
-
-
-//	  va = PGROUNDDOWN(rcr2());
-//	  mem = kalloc();
-//	  memset(mem, 0, PGSIZE);
-//	  mappages(proc->pgdir, (char*)va, PGSIZE, v2p(mem), PTE_W|PTE_U);
-return;
-
-   break;
+	  va= (uint) rcr2();
+	  insertVa2TLB(va);
+	  lapiceoi();
+  	  break;
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){

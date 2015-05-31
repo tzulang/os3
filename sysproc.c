@@ -50,16 +50,9 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  // if(n>=0){
   addr = proc->sz;
   if(growproc(n) < 0)
     return -1;
-  proc->sz+= n;
-  // } else{
-  //   if(     (n) < 0)
-  //     cprintf("here");
-  //   return -1;
-  // }
   return addr;
 }
 

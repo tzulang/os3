@@ -14,10 +14,11 @@ struct {
 
 static struct proc *initproc;
 
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
-
+extern   void flushTLB();
 static void wakeup1(void *chan);
 
 void
@@ -80,7 +81,7 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-  
+  memset(cpu->kpgdir,0, PGSIZE/2);
   p = allocproc();
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -132,14 +133,16 @@ fork(void)
   struct proc *np;
 
   // Allocate process.
-  if((np = allocproc()) == 0)
-    return -1;
+  if((np = allocproc()) == 0){
 
+	  return -1;
+  }
   // Copy process state from p.
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
+
     return -1;
   }
   np->sz = proc->sz;
@@ -162,7 +165,7 @@ fork(void)
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);
-  
+
   return pid;
 }
 
@@ -283,6 +286,8 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      flushTLB();
+
       swtch(&cpu->scheduler, proc->context);
       switchkvm(cpu);
 
@@ -463,3 +468,5 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+

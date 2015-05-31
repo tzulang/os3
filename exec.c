@@ -7,6 +7,8 @@
 #include "x86.h"
 #include "elf.h"
 
+extern void flushTLB();
+
 int
 exec(char *path, char **argv)
 {
@@ -94,6 +96,13 @@ exec(char *path, char **argv)
   proc->tf->esp = sp;
   switchuvm(proc);
   freevm(oldpgdir);
+   int j;
+         for ( j = 0; j < 512; ++j) {
+         cpu->kpgdir[j] = 0;
+     }
+
+  flushTLB();
+
   return 0;
 
  bad:

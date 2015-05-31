@@ -1464,7 +1464,7 @@ sbrktest(void)
   a = sbrk(0);
   c = sbrk(-4096);
   if(c == (char*)0xffffffff){
-    printf(stdout, "sbrk could not deallocate %d\n",c);
+    printf(stdout, "sbrk could not deallocate\n");
     exit();
   }
   c = sbrk(0);
@@ -1482,7 +1482,7 @@ sbrktest(void)
   }
   if(*lastaddr == 99){
     // should be zero
-    printf(stdout, "sbrk de-allocation didn't really deallocate %p\n",*lastaddr);
+    printf(stdout, "sbrk de-allocation didn't really deallocate\n");
     exit();
   }
 

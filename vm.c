@@ -10,6 +10,15 @@
 extern char data[];  // defined by kernel.ld
 struct segdesc gdt[NSEGS];
 
+void flushTLB();
+
+
+//
+//#define TLB_SIZE 2
+//
+//static pte_t* TLB[TLB_SIZE];
+// int TLBindex=0;
+
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
 void
@@ -157,7 +166,8 @@ kvmalloc(struct cpu *c)
 void
 switchkvm(struct cpu *c)
 {
-  lcr3(v2p(c->kpgdir));   // switch to the kernel page table
+
+	lcr3(v2p(c->kpgdir));   // switch to the kernel page table
 }
 
 // Switch TSS and h/w page table to correspond to process p.
@@ -165,6 +175,7 @@ void
 switchuvm(struct proc *p)
 {
   pushcli();
+
   cpu->gdt[SEG_TSS] = SEG16(STS_T32A, &cpu->ts, sizeof(cpu->ts)-1, 0);
   cpu->gdt[SEG_TSS].s = 0;
   cpu->ts.ss0 = SEG_KDATA << 3;
@@ -172,7 +183,9 @@ switchuvm(struct proc *p)
   ltr(SEG_TSS << 3);
   if(p->pgdir == 0)
     panic("switchuvm: no pgdir");
-  lcr3(v2p(p->pgdir));  // switch to new address space
+ //lcr3(v2p(cpu->kpgdir));  // switch to new address space
+
+
   popcli();
 }
 
@@ -260,7 +273,6 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     pte = walkpgdir(pgdir, (char*)a, 0);
     if(!pte)
       a += (NPTENTRIES - 1) * PGSIZE;
-
     else if((*pte & PTE_P) != 0){
       pa = PTE_ADDR(*pte);
       if(pa == 0)
@@ -385,3 +397,38 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 //PAGEBREAK!
 // Blank page.
 
+
+int insertVa2TLB(uint va){
+
+
+	if(va < KERNBASE){
+
+		cpu->TLBindex= 	(cpu->TLBindex+1) %TLB_SZ;
+//	p(" cpu->TLBindex %p ********* %p \n", cpu->TLBindex,cpu->TLB[ cpu->TLBindex]);
+	if (cpu->TLB[ cpu->TLBindex])
+		   *cpu->TLB[ cpu->TLBindex ]=0;
+
+  	pte_t *pte  = walkpgdir(proc->pgdir,(void*) va ,1);
+  	pde_t *kpde = &cpu->kpgdir[PDX(va)];
+     uint  flags = PTE_FLAGS(*pte);
+  	*kpde = v2p(pte) | flags;
+
+	cpu->TLB[cpu->TLBindex]=&cpu->kpgdir[PDX(va)];
+
+
+	}
+ 	return 0;
+}
+
+void flushTLB(){
+
+
+		cpu->TLBindex=0;
+	 //  memset(cpu->kpgdir,0, PGSIZE/2);
+
+	   int i;
+	   for ( i=0; i<TLB_SZ; i++)
+		   if (cpu->TLB[i])
+			   	   *cpu->TLB[1]=0;
+
+}

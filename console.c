@@ -14,6 +14,8 @@
 #include "proc.h"
 #include "x86.h"
 
+static int Debug=1;
+
 static void consputc(int);
 
 static int panicked = 0;
@@ -53,6 +55,61 @@ printint(int xx, int base, int sign)
 void
 cprintf(char *fmt, ...)
 {
+  int i, c, locking;
+  uint *argp;
+  char *s;
+
+  locking = cons.locking;
+  if(locking)
+    acquire(&cons.lock);
+
+  if (fmt == 0)
+    panic("null fmt");
+
+  argp = (uint*)(void*)(&fmt + 1);
+  for(i = 0; (c = fmt[i] & 0xff) != 0; i++){
+    if(c != '%'){
+      consputc(c);
+      continue;
+    }
+    c = fmt[++i] & 0xff;
+    if(c == 0)
+      break;
+    switch(c){
+    case 'd':
+      printint(*argp++, 10, 1);
+      break;
+    case 'x':
+    case 'p':
+      printint(*argp++, 16, 0);
+      break;
+    case 's':
+      if((s = (char*)*argp++) == 0)
+        s = "(null)";
+      for(; *s; s++)
+        consputc(*s);
+      break;
+    case '%':
+      consputc('%');
+      break;
+    default:
+      // Print unknown % sequence to draw attention.
+      consputc('%');
+      consputc(c);
+      break;
+    }
+  }
+
+  if(locking)
+    release(&cons.lock);
+}
+
+
+void
+p(char *fmt, ...)
+{
+  if (!Debug)
+	  return;
   int i, c, locking;
   uint *argp;
   char *s;
