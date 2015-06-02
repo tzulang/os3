@@ -13,6 +13,8 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+extern void pageFault(uint va);
+
 
 void
 tvinit(void)
@@ -45,9 +47,14 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
-  uint va;
-
+  
+ uint va;
+ // char *mem;
+ //  uint a;
   switch(tf->trapno){
+
+
+ 
   case T_IRQ0 + IRQ_TIMER:
     if(cpu->id == 0){
       acquire(&tickslock);
@@ -78,12 +85,24 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
+  
+  
   case T_PGFLT:
 
-	  va= (uint) rcr2();
-	  insertVa2TLB(va);
-	  lapiceoi();
-  	  break;
+
+      va = rcr2();
+      
+      if (va <= proc->sz){
+        pageFault(va);
+        break;
+      }
+      // a = PGROUNDDOWN(rcr2());
+    
+      // mem = kalloc();
+      // memset(mem, 0, PGSIZE);
+      // mappages(proc->pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
+      
+ 
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){

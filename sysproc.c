@@ -51,8 +51,10 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = proc->sz;
+
   if(growproc(n) < 0)
     return -1;
+  // proc->sz+= n;
   return addr;
 }
 
@@ -68,7 +70,7 @@ sys_sleep(void)
   ticks0 = ticks;
   while(ticks - ticks0 < n){
     if(proc->killed){
-      release(&tickslock);
+      release(&tickslock);  
       return -1;
     }
     sleep(&ticks, &tickslock);
