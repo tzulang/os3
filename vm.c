@@ -10,6 +10,7 @@
 extern char data[];  // defined by kernel.ld
 struct segdesc gdt[NSEGS];
 void flushTLB();
+extern walkpgdir(pde_t *pgdir, const void *va, int alloc);
 
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
@@ -43,7 +44,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
+ pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
   pde_t *pde;
@@ -383,32 +384,31 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 
 #define nextIndex(x) ((x+1) %2)
 
-void pageFault(uint va){
+void pageFault(uint *va){
  
   pte_t *pte, *kpte;
  // void * m;
-  uint oldVa1,oldVa2;
+  uint *oldVa1, *oldVa2;
 
       oldVa1 =cpu->tlb[cpu->tlbIndex];
-      oldVa2 =cpu->tlb[nextIndex(cpu->tlbIndex)];
+      oldVa2 =cpu->tlb[(cpu->tlbIndex+1)% TLBSZ];
      // cprintf( "%p %p\n",oldVa1,oldVa2);
 
       if (oldVa1 != 0 ){
         
-        if (oldVa2 &&  PDX(oldVa2)!=PDX(oldVa1) ){
+        pte = walkpgdir( cpu->kpgdir, (void *) oldVa1, 0);
+        *pte=0;
+        cpu->tlb[cpu->tlbIndex]=0;
+
+        if ( PDX(oldVa2)!= PDX(oldVa1) ){
             // cprintf("here1");
-            kpte= &cpu->kpgdir[PDX(oldVa1)]; 
-            if (*kpte & PTE_P){
+            kpte= cpu->kpgdir +PDX(oldVa1);
+            if (kpte && (*kpte & PTE_P)){
                 char * v = p2v(PTE_ADDR(*kpte));                
                 kfree(v);
                 *kpte=0;  
             }
-        } else {
-                
-            pte = walkpgdir( cpu->kpgdir, (void *) oldVa1, 0);
-            *pte=0;
-            cpu->tlb[cpu->tlbIndex]=0;
-        }
+         }
       }
 
       pte  = walkpgdir( proc->pgdir, (void *) va, 0);
@@ -417,7 +417,7 @@ void pageFault(uint va){
       *kpte=*pte;
 
       cpu->tlb[cpu->tlbIndex]=va;
-      cpu->tlbIndex= nextIndex(cpu->tlbIndex);
+      cpu->tlbIndex= (cpu->tlbIndex+1)% TLBSZ;
             
         
 }
@@ -427,19 +427,20 @@ void flushTLB(){
     int i;
     for( i= 0 ; i< TLBSZ ; i++){
       if (cpu->tlb[i]){
-        pte_t *kpte= &cpu->kpgdir[PDX(cpu->tlb[i])];
+        pte_t *kpte= (cpu->kpgdir +PDX(cpu->tlb[i]));
 
-        if (*kpte & PTE_P){
-            char * v = p2v(PTE_ADDR(*kpte));           
+        if (kpte && (*kpte & PTE_P)){
+            char * v = p2v( PTE_ADDR(*kpte) );           
             kfree(v);
-            *kpte=0;              
+             *kpte=0;   
         }
         cpu->tlb[i]=0;
       }
-    cpu->kpgdir[PDX(cpu->tlb[i])]=0; 
+     
+    
 
     }
-   //memset(cpu->kpgdir, 0, PGSIZE/2);
+    memset(cpu->kpgdir, 0, PGSIZE/2);
 }
 
 //PAGEBREAK!

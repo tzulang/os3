@@ -16,9 +16,7 @@ struct cpu {
   struct cpu *cpu;
   struct proc *proc;           // The currently-running process.
 
-  
- 
-  uint    tlb[TLBSZ];
+  uint*    tlb[TLBSZ];
   int     tlbIndex;
 
 };

@@ -13,7 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-extern void pageFault(uint va);
+extern void pageFault(uint *va);
 
 
 void
@@ -48,12 +48,10 @@ trap(struct trapframe *tf)
     return;
   }
   
- uint va;
+ uint *va;
  // char *mem;
  //  uint a;
   switch(tf->trapno){
-
-
  
   case T_IRQ0 + IRQ_TIMER:
     if(cpu->id == 0){
@@ -86,15 +84,49 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   
-  
+
   case T_PGFLT:
 
 
-      va = rcr2();
+       va =(uint*) rcr2();
       
-      if (va <= proc->sz){
-        pageFault(va);
+      if ((uint) va <= proc->sz){
+          pte_t *pte, *kpte;
+     // void * m;
+      uint *oldVa1, *oldVa2;
+
+          oldVa1 =cpu->tlb[cpu->tlbIndex];
+          oldVa2 =cpu->tlb[(cpu->tlbIndex+1)% TLBSZ];
+         // cprintf( "%p %p\n",oldVa1,oldVa2);
+
+          if (oldVa1 != 0 ){
+            
+            pte = walkpgdir( cpu->kpgdir, (void *) oldVa1, 0);
+            *pte=0;
+            cpu->tlb[cpu->tlbIndex]=0;
+
+            if ( PDX(oldVa2)!= PDX(oldVa1) ){
+                // cprintf("here1");
+                kpte= cpu->kpgdir +PDX(oldVa1);
+                if (kpte && (*kpte & PTE_P)){
+                    char * v = p2v(PTE_ADDR(*kpte));                
+                    kfree(v);
+                    *kpte=0;  
+                }
+             }
+          }
+
+          pte  = walkpgdir( proc->pgdir, (void *) va, 0);
+          kpte = walkpgdir( cpu->kpgdir, (void *) va, 1);
+            
+          *kpte=*pte;
+
+          cpu->tlb[cpu->tlbIndex]=va;
+          cpu->tlbIndex= (cpu->tlbIndex+1)% TLBSZ;
+            
         break;
+      }else {
+
       }
       // a = PGROUNDDOWN(rcr2());
     
